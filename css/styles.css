@@ -128,3 +128,42 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #2F7D6D; border-c
   margin-top: 16px;
 }
 .oculto { display: none; }
+
+/* ---------- Etapa 3: dosis del día ---------- */
+.destacada { border: 3px solid #2F7D6D; }
+.etiqueta {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2F7D6D;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 4px;
+}
+.destacada .med-horas { font-size: 44px; margin: 0 0 4px; }
+
+.barra {
+  height: 18px;
+  background: #DCE7E3;
+  border-radius: 9px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.barra-relleno { height: 100%; background: #2F7D6D; border-radius: 9px; }
+
+.dosis { border-left: 10px solid #9BB3AC; }
+.dosis-tomada { border-left-color: #2F7D6D; }
+.dosis-vencida { border-left-color: #B3261E; }
+
+.estado { font-size: 21px; font-weight: 700; margin: 4px 0 8px; }
+.estado-tomada { color: #2F7D6D; }
+.estado-vencida { color: #B3261E; }
+.estado-pendiente { color: #4A5D58; }
+
+.aviso {
+  font-size: 19px;
+  color: #8C1D18;
+  background: #FDECEA;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 8px 0;
+}
