@@ -167,3 +167,109 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #2F7D6D; border-c
   padding: 10px 14px;
   margin: 8px 0;
 }
+
+/* ---------- Etapas 4 y 5: alarma, historial, ajustes ---------- */
+#app { zoom: var(--escala, 1); }
+
+.boton-chico { min-height: 52px; font-size: 20px; }
+.boton:disabled { opacity: 0.55; }
+
+.dosis-omitida { border-left-color: #8A8F98; }
+.dosis-pospuesta { border-left-color: #E09A00; }
+.estado-omitida { color: #5C6370; }
+.estado-pospuesta { color: #9A6700; }
+
+.nota { font-size: 18px; color: #4A5D58; margin: 12px 0 0; line-height: 1.35; }
+.exito {
+  background: #E3F0EC;
+  color: #1B4D43;
+  border: 2px solid #2F7D6D;
+  border-radius: 12px;
+  padding: 14px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+
+/* Opciones de ajustes */
+.opciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.opcion {
+  min-width: 84px;
+  min-height: 56px;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #1F2D2A;
+  background: #FFFFFF;
+  border: 2px solid #9BB3AC;
+  border-radius: 12px;
+  padding: 0 16px;
+}
+.opcion.activa { background: #2F7D6D; border-color: #2F7D6D; color: #FFFFFF; }
+
+/* Pantalla de alarma */
+.alarma {
+  text-align: center;
+  background: #FFF8E1;
+  border: 4px solid #F5A623;
+  border-radius: 24px;
+  padding: 28px 20px 24px;
+}
+.alarma h1 { font-size: 30px; margin-bottom: 12px; }
+.alarma-icono { font-size: 64px; margin: 0; animation: latido 1.2s ease-in-out infinite; }
+.alarma-nombre { font-size: 38px; font-weight: 800; margin: 8px 0; color: #1F2D2A; }
+.alarma-dosis { font-size: 26px; font-weight: 600; margin: 0 0 8px; }
+@keyframes latido { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .alarma-icono { animation: none; } }
+
+/* Historial: calendario */
+.mes-nav { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 16px; }
+.mes-nombre { font-size: 26px; font-weight: 700; margin: 0; text-align: center; flex: 1; }
+.mes-boton {
+  min-width: 60px;
+  min-height: 60px;
+  font-size: 34px;
+  font-weight: 700;
+  color: #2F7D6D;
+  background: #FFFFFF;
+  border: 2px solid #2F7D6D;
+  border-radius: 14px;
+}
+.calendario { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-cabecera { text-align: center; font-size: 16px; font-weight: 700; color: #4A5D58; padding-bottom: 4px; }
+.cal-vacio { min-height: 52px; }
+.cal-dia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 2px 0;
+  font-family: inherit;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: transparent;
+  color: #8AA39C;
+}
+.cal-dia .n { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.cal-dia .m { font-size: 15px; font-weight: 700; line-height: 1; min-height: 15px; }
+.cal-ok { background: #2F7D6D; color: #FFFFFF; }
+.cal-parcial { background: #F5A623; color: #1F2D2A; }
+.cal-falla { background: #B3261E; color: #FFFFFF; }
+.cal-pendiente { background: #E3F0EC; color: #1F2D2A; border-color: #9BB3AC; }
+.cal-vacio-dia, .cal-dia.cal-vacio { color: #8AA39C; }
+.cal-hoy { outline: 3px solid #1F2D2A; outline-offset: 1px; }
+.cal-dia:disabled { opacity: 0.8; }
+
+.leyenda { display: flex; align-items: center; gap: 12px; font-size: 19px; margin: 0 0 10px; }
+.leyenda:last-child { margin-bottom: 0; }
+.muestra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  flex: none;
+}

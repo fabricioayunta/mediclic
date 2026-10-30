@@ -1,13 +1,19 @@
-// Mediclic - Etapa 3: dosis del día y confirmación de tomas.
+// Mediclic - Etapa 4 y 5: alarma, posponer/omitir, historial, ajustes y copias.
 
 const ORDEN_DIAS = [1, 2, 3, 4, 5, 6, 0];
 const NOMBRES_DIAS = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 0: "Dom" };
 
-let borrador = null; // medicamento que se está cargando o editando
-let pantallaActual = ""; // para refrescar solo las pantallas que dependen de la hora
+let borrador = null;       // medicamento que se está cargando o editando
+let pantallaActual = "";   // para saber qué pantalla hay que refrescar
+const sonadasEnSesion = new Set(); // alarmas que ya sonaron en esta sesión
 
 // ---------- Utilidades ----------
 const app = () => document.getElementById("app");
+
+function entrarEn(nombre) {
+  pantallaActual = nombre;
+  if (nombre !== "alarma") Sonido.detener();
+}
 
 function esc(texto) {
   return String(texto ?? "").replace(/[&<>"']/g, (c) => (
@@ -29,10 +35,7 @@ function fechaHoy() {
 }
 
 function hoyISO() {
-  const d = new Date();
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
-  const dia = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mes}-${dia}`;
+  return Agenda.fechaLocalISO(new Date());
 }
 
 function fechaCorta(iso) {
@@ -40,7 +43,17 @@ function fechaCorta(iso) {
   return `${d}/${m}/${a}`;
 }
 
+function horaDeMs(ms) {
+  return new Date(ms).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function horaDeRegistro(iso) {
+  const t = new Date(iso);
+  return isNaN(t.getTime()) ? "—" : horaDeMs(t.getTime());
+}
+
 function mostrarErrorGeneral() {
+  entrarEn("error");
   app().innerHTML = `
     <h1>Mediclic</h1>
     <div class="tarjeta">
@@ -51,7 +64,7 @@ function mostrarErrorGeneral() {
 
 // ---------- Pantalla: aviso inicial ----------
 function pantallaAviso() {
-  pantallaActual = "aviso";
+  entrarEn("aviso");
   app().innerHTML = `
     <h1>Mediclic</h1>
     <div class="tarjeta">
@@ -66,7 +79,7 @@ function pantallaAviso() {
   };
 }
 
-// ---------- Dosis del día (compartido por Inicio y Hoy) ----------
+// ---------- Dosis del día (compartido por Inicio, Hoy y alarma) ----------
 async function cargarAgendaDeHoy() {
   const fecha = hoyISO();
   const [medicamentos, tomas] = await Promise.all([
@@ -77,63 +90,94 @@ async function cargarAgendaDeHoy() {
   return { fecha, medicamentos, dosis };
 }
 
-function horaDeRegistro(iso) {
-  return new Date(iso).toLocaleTimeString("es-AR", {
-    hour: "2-digit", minute: "2-digit", hour12: false
+function datosBoton(d) {
+  return `data-med="${esc(d.medId)}" data-hora="${esc(d.hora)}" data-fecha="${esc(d.fecha)}"`;
+}
+
+function botonAccion(accion, d, texto, clase) {
+  return `<button class="boton ${clase || ""}" data-accion="${accion}" ${datosBoton(d)}>${texto}</button>`;
+}
+
+function activarBotones(origen) {
+  document.querySelectorAll("[data-accion]").forEach((b) => {
+    b.onclick = () =>
+      pantallaConfirmar(b.dataset.accion, b.dataset.med, b.dataset.hora, b.dataset.fecha, origen);
   });
 }
 
-function botonTomar(d) {
-  return `<button class="boton" data-tomar data-med="${esc(d.medId)}" data-hora="${esc(d.hora)}" data-fecha="${esc(d.fecha)}">YA LO TOMÉ</button>`;
+async function volverA(origen) {
+  if (origen === "hoy") return pantallaHoy();
+  if (origen === "alarma") {
+    sonadasEnSesion.clear(); // si quedó algo sin resolver, vuelve a sonar
+    await pantallaInicio();
+    return revisarAlarmas();
+  }
+  return pantallaInicio();
 }
 
-function activarBotonesTomar(origen) {
-  document.querySelectorAll("[data-tomar]").forEach((b) => {
-    b.onclick = () => pantallaConfirmarToma(b.dataset.med, b.dataset.hora, b.dataset.fecha, origen);
-  });
-}
-
-function volverA(origen) {
-  return origen === "hoy" ? pantallaHoy() : pantallaInicio();
+function accionesDeDosis(d) {
+  if (d.estado === "tomado" || d.estado === "omitido") {
+    return d.fecha === hoyISO() ? botonAccion("deshacer", d, "DESHACER", "boton-secundario boton-chico") : "";
+  }
+  if (!d.puedeConfirmar) return "";
+  const omitir = d.estado === "vencida" || d.estado === "pospuesto"
+    ? botonAccion("omitir", d, "OMITIR ESTA TOMA", "boton-secundario boton-chico")
+    : "";
+  return botonAccion("tomar", d, "YA LO TOMÉ") + omitir;
 }
 
 function tarjetaDestacada(d) {
   const vencida = d.estado === "vencida";
+  const pospuesta = d.estado === "pospuesto";
+  const etiqueta = vencida ? "Toma sin confirmar" : pospuesta ? "Toma pospuesta" : "Próxima toma";
   return `
     <div class="tarjeta destacada">
-      <p class="etiqueta">${vencida ? "Toma sin confirmar" : "Próxima toma"}</p>
+      <p class="etiqueta">${etiqueta}</p>
       <p class="med-horas">${esc(d.hora)}</p>
       <p class="med-nombre">${esc(d.nombre)}</p>
       <p class="med-dato">Dosis: ${esc(d.dosis)}</p>
-      ${vencida ? `<p class="aviso">Ya pasó el horario. Si tenés dudas, consultá a tu profesional de salud.</p>` : ""}
-      ${d.puedeConfirmar ? botonTomar(d) : `<p class="med-dato">Todavía falta para esta toma.</p>`}
+      ${pospuesta ? `<p class="estado estado-pospuesta">Te aviso de nuevo a las ${horaDeMs(d.pospuestaHasta)}</p>` : ""}
+      ${vencida ? `<p class="aviso">Ya pasó el horario. Si tenés dudas sobre qué hacer, consultá a tu profesional de salud.</p>` : ""}
+      ${d.puedeConfirmar ? accionesDeDosis(d) : `<p class="med-dato">Todavía falta para esta toma.</p>`}
     </div>`;
 }
 
-function tarjetaDosis(d) {
-  const clase = d.estado === "tomado" ? "dosis-tomada" : d.estado === "vencida" ? "dosis-vencida" : "";
-  let estado = "";
+function tarjetaDosis(d, conAcciones) {
+  const pasado = d.fecha < hoyISO();
+  const clases = {
+    tomado: "dosis-tomada", omitido: "dosis-omitida",
+    vencida: "dosis-vencida", pospuesto: "dosis-pospuesta", pendiente: ""
+  };
+  let estado;
   if (d.estado === "tomado") {
     estado = `<p class="estado estado-tomada">✓ Tomado a las ${horaDeRegistro(d.horaReal)}</p>`;
+  } else if (d.estado === "omitido") {
+    estado = `<p class="estado estado-omitida">Omitido</p>`;
   } else if (d.estado === "vencida") {
-    estado = `<p class="estado estado-vencida">Vencida</p>
-              <p class="aviso">Ya pasó el horario. Si tenés dudas, consultá a tu profesional de salud.</p>`;
+    estado = `<p class="estado estado-vencida">${pasado ? "Sin registrar" : "Vencida"}</p>` +
+      (conAcciones ? `<p class="aviso">Ya pasó el horario. Si tenés dudas sobre qué hacer, consultá a tu profesional de salud.</p>` : "");
+  } else if (d.estado === "pospuesto") {
+    estado = `<p class="estado estado-pospuesta">Pospuesta hasta las ${horaDeMs(d.pospuestaHasta)}</p>`;
   } else {
     estado = `<p class="estado estado-pendiente">Pendiente</p>`;
   }
+  const veces = d.veces > 0
+    ? `<p class="med-dato">Pospuesta ${d.veces} ${d.veces === 1 ? "vez" : "veces"}</p>`
+    : "";
   return `
-    <div class="tarjeta dosis ${clase}">
+    <div class="tarjeta dosis ${clases[d.estado] || ""}">
       <p class="med-horas">${esc(d.hora)}</p>
       <p class="med-nombre">${esc(d.nombre)}</p>
       <p class="med-dato">Dosis: ${esc(d.dosis)}</p>
       ${estado}
-      ${d.estado !== "tomado" && d.puedeConfirmar ? botonTomar(d) : ""}
+      ${veces}
+      ${conAcciones ? accionesDeDosis(d) : ""}
     </div>`;
 }
 
 // ---------- Pantalla: inicio ----------
 async function pantallaInicio() {
-  pantallaActual = "inicio";
+  entrarEn("inicio");
   let datos;
   try {
     datos = await cargarAgendaDeHoy();
@@ -145,7 +189,8 @@ async function pantallaInicio() {
   const { medicamentos, dosis } = datos;
   const total = dosis.length;
   const tomadas = dosis.filter((d) => d.estado === "tomado").length;
-  const proxima = dosis.find((d) => d.estado !== "tomado");
+  const omitidas = dosis.filter((d) => d.estado === "omitido").length;
+  const proxima = dosis.find((d) => d.estado !== "tomado" && d.estado !== "omitido");
 
   let bloqueProxima;
   if (medicamentos.length === 0) {
@@ -169,7 +214,7 @@ async function pantallaInicio() {
   const pct = total ? Math.round((tomadas / total) * 100) : 0;
   const bloqueProgreso = total === 0 ? "" : `
     <div class="tarjeta">
-      <p class="med-dato" style="margin:0"><strong>${tomadas} de ${total}</strong> dosis registradas hoy</p>
+      <p class="med-dato" style="margin:0"><strong>${tomadas} de ${total}</strong> dosis tomadas hoy${omitidas ? ` · ${omitidas} omitida${omitidas === 1 ? "" : "s"}` : ""}</p>
       <div class="barra"><div class="barra-relleno" style="width:${pct}%"></div></div>
     </div>`;
 
@@ -179,18 +224,22 @@ async function pantallaInicio() {
     ${bloqueProxima}
     ${bloqueProgreso}
     <button class="boton" id="ir-hoy">MEDICAMENTOS DE HOY</button>
-    <button class="boton boton-secundario" id="ir-lista">MIS MEDICAMENTOS</button>`;
+    <button class="boton boton-secundario" id="ir-historial">HISTORIAL</button>
+    <button class="boton boton-secundario" id="ir-lista">MIS MEDICAMENTOS</button>
+    <button class="volver" id="ir-ajustes" style="margin-top:12px">⚙ Ajustes</button>`;
 
   document.getElementById("ir-hoy").onclick = pantallaHoy;
+  document.getElementById("ir-historial").onclick = () => pantallaHistorial();
   document.getElementById("ir-lista").onclick = pantallaLista;
+  document.getElementById("ir-ajustes").onclick = () => pantallaAjustes();
   const agregar = document.getElementById("ir-agregar");
   if (agregar) agregar.onclick = () => pantallaFormulario();
-  activarBotonesTomar("inicio");
+  activarBotones("inicio");
 }
 
 // ---------- Pantalla: medicamentos de hoy ----------
 async function pantallaHoy() {
-  pantallaActual = "hoy";
+  entrarEn("hoy");
   let datos;
   try {
     datos = await cargarAgendaDeHoy();
@@ -201,7 +250,7 @@ async function pantallaHoy() {
 
   const contenido = datos.dosis.length === 0
     ? `<div class="tarjeta"><p>Hoy no tenés tomas programadas.</p></div>`
-    : datos.dosis.map(tarjetaDosis).join("");
+    : datos.dosis.map((d) => tarjetaDosis(d, true)).join("");
 
   app().innerHTML = `
     <button class="volver" id="volver">← Volver</button>
@@ -210,27 +259,55 @@ async function pantallaHoy() {
     ${contenido}`;
 
   document.getElementById("volver").onclick = pantallaInicio;
-  activarBotonesTomar("hoy");
+  activarBotones("hoy");
 }
 
-// ---------- Pantalla: confirmar toma ----------
-async function pantallaConfirmarToma(medId, hora, fecha, origen) {
-  pantallaActual = "confirmar";
+// ---------- Pantalla: confirmar (tomar / omitir / deshacer) ----------
+const TEXTOS_CONFIRMAR = {
+  tomar: {
+    titulo: "¿Ya lo tomaste?",
+    detalle: "",
+    si: "SÍ, YA LO TOMÉ",
+    claseSi: ""
+  },
+  omitir: {
+    titulo: "¿Omitir esta toma?",
+    detalle: "Va a quedar registrada como omitida. Mediclic no te indica qué hacer con una dosis que no tomaste: consultá a tu profesional de salud.",
+    si: "SÍ, OMITIR",
+    claseSi: "boton-peligro"
+  },
+  deshacer: {
+    titulo: "¿Deshacer el registro?",
+    detalle: "Se borra este registro y la toma vuelve a quedar sin confirmar.",
+    si: "SÍ, DESHACER",
+    claseSi: "boton-peligro"
+  }
+};
+
+async function pantallaConfirmar(accion, medId, hora, fecha, origen) {
+  entrarEn("confirmar");
+  const textos = TEXTOS_CONFIRMAR[accion];
+  if (!textos) return volverA(origen);
+
   let m;
   try {
     m = await DB.obtener(medId);
   } catch (e) {
     return mostrarErrorGeneral();
   }
-  if (!m) return volverA(origen);
+  if (!m && accion !== "deshacer") return volverA(origen);
+
+  const nombre = m ? m.nombre : "Esta toma";
+  const dosis = m ? m.dosis : "";
 
   app().innerHTML = `
-    <h1>¿Ya lo tomaste?</h1>
+    <h1>${textos.titulo}</h1>
     <div class="tarjeta">
-      <p class="med-nombre">${esc(m.nombre)}</p>
-      <p class="med-dato">Dosis: ${esc(m.dosis)}</p>
+      <p class="med-nombre">${esc(nombre)}</p>
+      ${dosis ? `<p class="med-dato">Dosis: ${esc(dosis)}</p>` : ""}
       <p class="med-dato">Horario programado: ${esc(hora)}</p>
-      <button class="boton" id="si">SÍ, YA LO TOMÉ</button>
+      ${textos.detalle ? `<p class="aviso">${textos.detalle}</p>` : ""}
+      <button class="boton ${textos.claseSi}" id="si">${textos.si}</button>
       <button class="boton boton-secundario" id="no">NO, VOLVER</button>
     </div>`;
 
@@ -238,20 +315,101 @@ async function pantallaConfirmarToma(medId, hora, fecha, origen) {
   document.getElementById("si").onclick = async () => {
     document.getElementById("si").disabled = true; // evita doble toque
     try {
-      await DB.registrarToma({
-        id: Agenda.idToma(medId, fecha, hora),
-        medId,
-        nombre: m.nombre,
-        dosis: m.dosis,
-        fecha,
-        horaProgramada: hora,
-        horaReal: new Date().toISOString(),
-        estado: "tomado"
-      });
+      const id = Agenda.idToma(medId, fecha, hora);
+      if (accion === "deshacer") {
+        await DB.borrarToma(id);
+      } else {
+        await DB.guardarEstado({
+          id, medId, nombre, dosis, fecha,
+          horaProgramada: hora,
+          horaReal: new Date().toISOString(),
+          estado: accion === "tomar" ? "tomado" : "omitido"
+        });
+      }
     } catch (e) {
       return mostrarErrorGeneral();
     }
     volverA(origen);
+  };
+}
+
+// ---------- Alarma ----------
+const PANTALLAS_CON_ALARMA = ["inicio", "hoy", "lista", "historial", "dia", "ajustes"];
+
+async function revisarAlarmas() {
+  // No se interrumpe un formulario ni una confirmación en curso.
+  if (!PANTALLAS_CON_ALARMA.includes(pantallaActual)) return;
+  let datos;
+  try {
+    datos = await cargarAgendaDeHoy();
+  } catch (e) {
+    return;
+  }
+  if (!PANTALLAS_CON_ALARMA.includes(pantallaActual)) return;
+
+  const dosis = datos.dosis.find((d) => d.debeSonar && !sonadasEnSesion.has(d.claveAlarma));
+  if (!dosis) return;
+  sonadasEnSesion.add(dosis.claveAlarma);
+
+  if (document.hidden) {
+    Sonido.notificar(
+      `Es hora de tomar tu medicamento: ${dosis.nombre}`,
+      `Dosis registrada: ${dosis.dosis}. Hora: ${dosis.hora}`,
+      dosis.claveAlarma
+    );
+  }
+  pantallaAlarma(dosis);
+}
+
+function pantallaAlarma(d) {
+  entrarEn("alarma");
+  const minutos = Config.get("posponerMin");
+  app().innerHTML = `
+    <div class="alarma" role="alertdialog" aria-live="assertive">
+      <p class="alarma-icono" aria-hidden="true">⏰</p>
+      <h1>Es hora de tomar tu medicamento</h1>
+      <p class="alarma-nombre">${esc(d.nombre)}</p>
+      <p class="alarma-dosis">Dosis registrada: ${esc(d.dosis)}</p>
+      <p class="med-dato">Horario: ${esc(d.hora)}</p>
+      <button class="boton" id="al-tomar">YA LO TOMÉ</button>
+      <button class="boton boton-secundario" id="al-posponer">POSPONER ${minutos} MIN</button>
+      <button class="boton boton-secundario boton-chico" id="al-omitir">OMITIR ESTA TOMA</button>
+    </div>`;
+  Sonido.iniciar();
+
+  const base = {
+    id: d.id, medId: d.medId, nombre: d.nombre, dosis: d.dosis,
+    fecha: d.fecha, horaProgramada: d.hora
+  };
+  const bloquear = () => {
+    ["al-tomar", "al-posponer", "al-omitir"].forEach((id) => {
+      document.getElementById(id).disabled = true;
+    });
+  };
+
+  document.getElementById("al-tomar").onclick = async () => {
+    bloquear();
+    try {
+      await DB.guardarEstado({ ...base, horaReal: new Date().toISOString(), estado: "tomado" });
+    } catch (e) {
+      return mostrarErrorGeneral();
+    }
+    volverA("alarma");
+  };
+  document.getElementById("al-posponer").onclick = async () => {
+    bloquear();
+    try {
+      await DB.guardarEstado({
+        ...base, horaReal: null, estado: "pospuesto",
+        pospuestaHasta: Date.now() + minutos * 60000
+      });
+    } catch (e) {
+      return mostrarErrorGeneral();
+    }
+    volverA("alarma");
+  };
+  document.getElementById("al-omitir").onclick = () => {
+    pantallaConfirmar("omitir", d.medId, d.hora, d.fecha, "alarma");
   };
 }
 
@@ -278,7 +436,7 @@ function tarjetaMedicamento(m) {
 }
 
 async function pantallaLista() {
-  pantallaActual = "lista";
+  entrarEn("lista");
   let medicamentos = [];
   try {
     medicamentos = await DB.listar();
@@ -310,7 +468,7 @@ async function pantallaLista() {
 
 // ---------- Pantalla: confirmar eliminación ----------
 async function pantallaConfirmarEliminar(id) {
-  pantallaActual = "eliminar";
+  entrarEn("eliminar");
   let m;
   try {
     m = await DB.obtener(id);
@@ -340,7 +498,7 @@ async function pantallaConfirmarEliminar(id) {
 
 // ---------- Pantalla: formulario (agregar / editar) ----------
 async function pantallaFormulario(id) {
-  pantallaActual = "formulario";
+  entrarEn("formulario");
   if (id) {
     let m;
     try {
@@ -511,8 +669,15 @@ async function guardarFormulario() {
 }
 
 // ---------- Arranque ----------
+Config.aplicar();
+
+// Los navegadores permiten el sonido recién después de un toque en la pantalla.
+["pointerdown", "touchstart", "keydown"].forEach((evento) => {
+  document.addEventListener(evento, Sonido.desbloquear, { passive: true });
+});
+
 if (localStorage.getItem("aviso_aceptado") === "si") {
-  pantallaInicio();
+  pantallaInicio().then(() => setTimeout(revisarAlarmas, 1200));
 } else {
   pantallaAviso();
 }
@@ -530,9 +695,14 @@ async function refrescarPantalla() {
   else await pantallaHoy();
   window.scrollTo(0, y);
 }
+
+setInterval(revisarAlarmas, 15000);
 setInterval(refrescarPantalla, 30000);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) refrescarPantalla();
+  if (!document.hidden) {
+    refrescarPantalla();
+    revisarAlarmas();
+  }
 });
 
 if ("serviceWorker" in navigator) {

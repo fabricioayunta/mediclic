@@ -39,21 +39,57 @@ const DB = (() => {
     });
   }
 
-  // Registra una toma. El id (medicamento + fecha + horario) es único,
-  // así que una misma dosis NO se puede registrar dos veces.
-  async function registrarToma(toma) {
+  // Guarda el estado de una dosis: "tomado", "omitido" o "pospuesto".
+  // El id (medicamento + fecha + horario) es único: una dosis que ya quedó
+  // "tomado" u "omitido" NO se puede registrar de nuevo.
+  async function guardarEstado(registro) {
     const db = await abrir();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("tomas", "readwrite");
-      const pedido = tx.objectStore("tomas").add(toma);
-      let repetida = false;
-      pedido.onerror = (evento) => {
-        if (pedido.error && pedido.error.name === "ConstraintError") {
-          repetida = true;
-          evento.preventDefault();
+      const almacen = tx.objectStore("tomas");
+      const resultado = { repetida: false };
+      const lectura = almacen.get(registro.id);
+      lectura.onsuccess = () => {
+        const previo = lectura.result;
+        if (previo && (previo.estado === "tomado" || previo.estado === "omitido")) {
+          resultado.repetida = true;
+          return;
         }
+        const nuevo = Object.assign({}, registro);
+        const vecesPrevias = previo ? previo.veces || 0 : 0;
+        nuevo.veces = registro.estado === "pospuesto" ? vecesPrevias + 1 : vecesPrevias;
+        almacen.put(nuevo);
       };
-      tx.oncomplete = () => resolve({ repetida });
+      tx.oncomplete = () => resolve(resultado);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  // Copia de seguridad: lee y reemplaza todo en una sola transacción.
+  async function exportarTodo() {
+    const db = await abrir();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(["medicamentos", "tomas"], "readonly");
+      const meds = tx.objectStore("medicamentos").getAll();
+      const tomas = tx.objectStore("tomas").getAll();
+      tx.oncomplete = () => resolve({ medicamentos: meds.result, tomas: tomas.result });
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  async function reemplazarTodo(medicamentos, tomas) {
+    const db = await abrir();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(["medicamentos", "tomas"], "readwrite");
+      const almMeds = tx.objectStore("medicamentos");
+      const almTomas = tx.objectStore("tomas");
+      almMeds.clear();
+      almTomas.clear();
+      medicamentos.forEach((m) => almMeds.put(m));
+      tomas.forEach((t) => almTomas.put(t));
+      tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
@@ -67,8 +103,16 @@ const DB = (() => {
     eliminar: (id) => operar("medicamentos", "readwrite", (a) => a.delete(id)),
     nuevoId: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     // Tomas
-    registrarToma,
+    guardarEstado,
+    borrarToma: (id) => operar("tomas", "readwrite", (a) => a.delete(id)),
     listarTomasDeFecha: (fecha) =>
-      operar("tomas", "readonly", (a) => a.index("fecha").getAll(fecha))
+      operar("tomas", "readonly", (a) => a.index("fecha").getAll(fecha)),
+    listarTomasEntre: (desde, hasta) =>
+      operar("tomas", "readonly", (a) =>
+        a.index("fecha").getAll(IDBKeyRange.bound(desde, hasta))
+      ),
+    // Copias de seguridad
+    exportarTodo,
+    reemplazarTodo
   };
 })();
