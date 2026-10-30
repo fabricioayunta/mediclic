@@ -1,0 +1,37 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 22px;
+  background: #F4F8F6;
+  color: #1F2D2A;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+#app { max-width: 600px; margin: 0 auto; padding: 24px 20px; }
+
+h1 { font-size: 34px; margin: 0 0 4px; }
+.fecha { font-size: 22px; color: #4A5D58; margin: 0 0 24px; text-transform: capitalize; }
+
+.tarjeta {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+}
+
+.boton {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #FFFFFF;
+  background: #2F7D6D;
+  border: none;
+  border-radius: 16px;
+  margin-top: 16px;
+}
+.boton:active { background: #25645A; }

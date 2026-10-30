@@ -1,0 +1,10 @@
+{
+  "name": "Mediclic",
+  "short_name": "Mediclic",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F8F6",
+  "theme_color": "#2F7D6D",
+  "lang": "es"
+}
