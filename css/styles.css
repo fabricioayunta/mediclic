@@ -9,9 +9,11 @@ body {
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
 
-#app { max-width: 600px; margin: 0 auto; padding: 24px 20px; }
+#app { max-width: 600px; margin: 0 auto; padding: 24px 20px 48px; }
 
 h1 { font-size: 34px; margin: 0 0 4px; }
+h2 { font-size: 26px; margin: 0 0 8px; }
+p { margin: 0 0 12px; line-height: 1.35; }
 .fecha { font-size: 22px; color: #4A5D58; margin: 0 0 24px; text-transform: capitalize; }
 
 .tarjeta {
@@ -22,6 +24,7 @@ h1 { font-size: 34px; margin: 0 0 4px; }
   margin-bottom: 20px;
 }
 
+/* ---------- Botones ---------- */
 .boton {
   display: block;
   width: 100%;
@@ -35,3 +38,93 @@ h1 { font-size: 34px; margin: 0 0 4px; }
   margin-top: 16px;
 }
 .boton:active { background: #25645A; }
+
+.boton-secundario {
+  color: #2F7D6D;
+  background: #FFFFFF;
+  border: 3px solid #2F7D6D;
+}
+.boton-secundario:active { background: #E3F0EC; }
+
+.boton-peligro { background: #B3261E; }
+.boton-peligro:active { background: #8C1D18; }
+
+.volver {
+  font-size: 22px;
+  font-weight: 600;
+  color: #2F7D6D;
+  background: none;
+  border: none;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  min-height: 48px;
+}
+
+.acciones { display: flex; gap: 12px; margin-top: 12px; }
+.acciones .boton { margin-top: 0; min-height: 56px; font-size: 20px; }
+
+/* ---------- Lista de medicamentos ---------- */
+.med-nombre { font-size: 28px; font-weight: 700; margin: 0 0 6px; }
+.med-dato { font-size: 21px; color: #3B4F4A; margin: 0 0 4px; }
+.med-horas { font-size: 26px; font-weight: 700; color: #2F7D6D; margin: 8px 0; }
+
+/* ---------- Formulario ---------- */
+.campo { margin-bottom: 22px; }
+.campo label.titulo { display: block; font-weight: 700; margin-bottom: 8px; }
+.ayuda { font-size: 18px; color: #4A5D58; margin: 4px 0 0; }
+
+input[type="text"], input[type="time"], input[type="date"], select, textarea {
+  width: 100%;
+  min-height: 60px;
+  font-size: 22px;
+  font-family: inherit;
+  padding: 10px 14px;
+  border: 2px solid #9BB3AC;
+  border-radius: 12px;
+  background: #FFFFFF;
+  color: #1F2D2A;
+}
+textarea { min-height: 100px; }
+input:focus, select:focus, textarea:focus { outline: 3px solid #2F7D6D; border-color: #2F7D6D; }
+
+.fila-hora { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.fila-hora input { flex: 1; }
+.quitar {
+  min-width: 60px;
+  min-height: 60px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #B3261E;
+  background: #FFFFFF;
+  border: 2px solid #B3261E;
+  border-radius: 12px;
+}
+
+.dias { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.dia { position: relative; }
+.dia input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; }
+.dia span {
+  display: block;
+  min-width: 74px;
+  min-height: 56px;
+  line-height: 56px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  border: 2px solid #9BB3AC;
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+.dia input:checked + span { background: #2F7D6D; border-color: #2F7D6D; color: #FFFFFF; }
+.dia input:focus + span { outline: 3px solid #1F2D2A; }
+
+.error {
+  background: #FDECEA;
+  color: #8C1D18;
+  border: 2px solid #B3261E;
+  border-radius: 12px;
+  padding: 14px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+.oculto { display: none; }
