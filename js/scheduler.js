@@ -151,7 +151,7 @@ const Agenda = (() => {
   }
 
   return {
-    dosisDelDia, resumenDia, idToma, fechaLocalISO, aplicaEnFecha,
+    dosisDelDia, resumenDia, idToma, fechaLocalISO, aplicaEnFecha, momentoDosis,
     MARGEN_ANTICIPO_MIN, VENTANA_ALARMA_MIN
   };
 })();

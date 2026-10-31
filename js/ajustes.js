@@ -149,6 +149,21 @@ function pantallaAjustes(mensaje, esError) {
       ? `<button class="boton boton-secundario" id="notif-prueba">ENVIAR AVISO DE PRUEBA</button>`
       : "";
 
+  const enApp = typeof Nativo !== "undefined" && Nativo.disponible();
+  const tarjetaAvisos = enApp ? `
+    <div class="tarjeta" id="bloque-nativo">
+      <h2>Alarmas del teléfono</h2>
+      <p class="med-dato" id="nat-estado">Revisando…</p>
+      <div id="nat-botones"></div>
+      <p class="nota">Para que suenen siempre, en los ajustes del teléfono entrá a Aplicaciones → Mediclic → Batería y elegí "Sin restricciones" (los nombres pueden cambiar según el modelo). Abrí Mediclic al menos una vez por semana para renovar los avisos.</p>
+    </div>` : `
+    <div class="tarjeta">
+      <h2>Avisos del sistema</h2>
+      <p class="med-dato">Estado: ${textoNotif}</p>
+      ${botonNotif}
+      <p class="nota">Mediclic avisa con sonido y pantalla de alarma mientras está abierta. Los avisos del sistema ayudan si la dejaste en segundo plano, pero esta versión web no puede garantizar alarmas con la app cerrada.</p>
+    </div>`;
+
   app().innerHTML = `
     <button class="volver" id="volver">← Volver</button>
     <h1>Ajustes</h1>
@@ -185,12 +200,7 @@ function pantallaAjustes(mensaje, esError) {
       <p class="nota">El sonido solo funciona después de que tocás la pantalla. La vibración no está disponible en iPhone.</p>
     </div>
 
-    <div class="tarjeta">
-      <h2>Avisos del sistema</h2>
-      <p class="med-dato">Estado: ${textoNotif}</p>
-      ${botonNotif}
-      <p class="nota">Mediclic avisa con sonido y pantalla de alarma mientras está abierta. Los avisos del sistema ayudan si la dejaste en segundo plano, pero esta versión web no puede garantizar alarmas con la app cerrada.</p>
-    </div>
+    ${tarjetaAvisos}
 
     <div class="tarjeta">
       <h2>Copia de seguridad</h2>
@@ -242,6 +252,8 @@ function pantallaAjustes(mensaje, esError) {
     }
   };
 
+  if (enApp) rellenarBloqueNativo();
+
   const selector = document.getElementById("archivo-copia");
   document.getElementById("importar").onclick = () => selector.click();
   selector.onchange = async () => {
@@ -255,6 +267,47 @@ function pantallaAjustes(mensaje, esError) {
     } catch (e) {
       pantallaAjustes("No se pudo leer el archivo. Elegí una copia de Mediclic.", true);
     }
+  };
+}
+
+async function rellenarBloqueNativo() {
+  const permisos = await Nativo.estadoPermisos();
+  if (pantallaActual !== "ajustes" || !permisos) return;
+  const programados = Nativo.estado();
+  const si = (v) => (v === "granted" ? "Sí" : v === "denied" ? "No" : "No se sabe");
+
+  document.getElementById("nat-estado").innerHTML = `
+    Avisos permitidos: <strong>${si(permisos.notificaciones)}</strong><br>
+    Alarmas exactas: <strong>${si(permisos.exacta)}</strong><br>
+    Avisos programados (próximos 7 días): <strong>${programados.cantidad}</strong>
+    ${programados.motivo && programados.motivo !== "sin-permiso" ? `<br><span style="color:#B3261E">${esc(programados.motivo)}</span>` : ""}`;
+
+  let botones = "";
+  if (permisos.notificaciones !== "granted") {
+    botones += `<button class="boton" id="nat-permiso">PERMITIR AVISOS</button>`;
+  }
+  if (permisos.exacta === "denied") {
+    botones += `<button class="boton" id="nat-exacta">PERMITIR ALARMAS EXACTAS</button>`;
+  }
+  botones += `<button class="boton boton-secundario" id="nat-prueba">PROBAR AVISO EN 1 MINUTO</button>
+              <div id="nat-mensaje"></div>`;
+  document.getElementById("nat-botones").innerHTML = botones;
+
+  const permiso = document.getElementById("nat-permiso");
+  if (permiso) {
+    permiso.onclick = async () => {
+      await Nativo.pedirPermisos();
+      Nativo.pedirReprogramar(0);
+      setTimeout(() => pantallaAjustes(), 600);
+    };
+  }
+  const exacta = document.getElementById("nat-exacta");
+  if (exacta) exacta.onclick = () => Nativo.abrirAjusteAlarmaExacta();
+  document.getElementById("nat-prueba").onclick = async () => {
+    const ok = await Nativo.probarAviso();
+    document.getElementById("nat-mensaje").innerHTML = ok
+      ? `<div class="exito">Listo. Cerrá Mediclic y esperá 1 minuto: tiene que sonar el aviso.</div>`
+      : `<div class="error">No se pudo programar la prueba. Revisá los permisos.</div>`;
   };
 }
 

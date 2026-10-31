@@ -75,6 +75,7 @@ function pantallaAviso() {
     </div>`;
   document.getElementById("aceptar").onclick = () => {
     localStorage.setItem("aviso_aceptado", "si");
+    if (typeof Nativo !== "undefined") Nativo.iniciar();
     pantallaInicio();
   };
 }
@@ -351,7 +352,9 @@ async function revisarAlarmas() {
   if (!dosis) return;
   sonadasEnSesion.add(dosis.claveAlarma);
 
-  if (document.hidden) {
+  if (typeof Nativo !== "undefined" && Nativo.disponible()) {
+    Nativo.quitarAvisosDeDosis(dosis.id); // ya se muestra la alarma dentro de la app
+  } else if (document.hidden) {
     Sonido.notificar(
       `Es hora de tomar tu medicamento: ${dosis.nombre}`,
       `Dosis registrada: ${dosis.dosis}. Hora: ${dosis.hora}`,
@@ -678,6 +681,7 @@ Config.aplicar();
 
 if (localStorage.getItem("aviso_aceptado") === "si") {
   pantallaInicio().then(() => setTimeout(revisarAlarmas, 1200));
+  if (typeof Nativo !== "undefined") Nativo.iniciar();
 } else {
   pantallaAviso();
 }
@@ -702,6 +706,7 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     refrescarPantalla();
     revisarAlarmas();
+    if (typeof Nativo !== "undefined") Nativo.pedirReprogramar();
   }
 });
 

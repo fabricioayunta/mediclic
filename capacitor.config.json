@@ -1,0 +1,11 @@
+{
+  "appId": "com.mediclic.app",
+  "appName": "Mediclic",
+  "webDir": "www",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_mediclic",
+      "iconColor": "#2F7D6D"
+    }
+  }
+}

@@ -27,6 +27,13 @@ const DB = (() => {
     });
   }
 
+  // Si corre dentro de la app Android, se vuelven a programar los avisos del teléfono.
+  function huboCambio() {
+    try {
+      if (typeof Nativo !== "undefined") Nativo.pedirReprogramar();
+    } catch (e) { /* nada */ }
+  }
+
   async function operar(almacenNombre, modo, accion) {
     const db = await abrir();
     return new Promise((resolve, reject) => {
@@ -99,12 +106,28 @@ const DB = (() => {
     // Medicamentos
     listar: () => operar("medicamentos", "readonly", (a) => a.getAll()),
     obtener: (id) => operar("medicamentos", "readonly", (a) => a.get(id)),
-    guardar: (medicamento) => operar("medicamentos", "readwrite", (a) => a.put(medicamento)),
-    eliminar: (id) => operar("medicamentos", "readwrite", (a) => a.delete(id)),
+    guardar: async (medicamento) => {
+      const r = await operar("medicamentos", "readwrite", (a) => a.put(medicamento));
+      huboCambio();
+      return r;
+    },
+    eliminar: async (id) => {
+      const r = await operar("medicamentos", "readwrite", (a) => a.delete(id));
+      huboCambio();
+      return r;
+    },
     nuevoId: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     // Tomas
-    guardarEstado,
-    borrarToma: (id) => operar("tomas", "readwrite", (a) => a.delete(id)),
+    guardarEstado: async (registro) => {
+      const r = await guardarEstado(registro);
+      huboCambio();
+      return r;
+    },
+    borrarToma: async (id) => {
+      const r = await operar("tomas", "readwrite", (a) => a.delete(id));
+      huboCambio();
+      return r;
+    },
     listarTomasDeFecha: (fecha) =>
       operar("tomas", "readonly", (a) => a.index("fecha").getAll(fecha)),
     listarTomasEntre: (desde, hasta) =>
@@ -113,6 +136,9 @@ const DB = (() => {
       ),
     // Copias de seguridad
     exportarTodo,
-    reemplazarTodo
+    reemplazarTodo: async (medicamentos, tomas) => {
+      await reemplazarTodo(medicamentos, tomas);
+      huboCambio();
+    }
   };
 })();

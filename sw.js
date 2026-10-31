@@ -1,10 +1,11 @@
-const CACHE = "mediclic-v4";
+const CACHE = "mediclic-v5";
 const ARCHIVOS = [
   "./",
   "./index.html",
   "./css/styles.css",
   "./js/db.js",
   "./js/scheduler.js",
+  "./js/nativo.js",
   "./js/sonido.js",
   "./js/ajustes.js",
   "./js/historial.js",
